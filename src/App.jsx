@@ -11,7 +11,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 import LoginPage from "@/pages/LoginPage";
-import SignupPage from "@/pages/SignupPage";
+import RegisterPage from "@/pages/RegisterPage";
+import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 
 import SheetsLibrary from "./pages/SheetsLibrary";
@@ -42,19 +43,13 @@ function App() {
       <Routes>
         {/* --- NHÓM 1: CÁC TRANG AUTH (KHÔNG CÓ SIDEBAR/HEADER) --- */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* --- NHÓM 2: CÁC TRANG CHÍNH (ĐƯỢC BỌC TRONG MAINLAYOUT) --- */}
         <Route element={<MainLayout />}>
-          {/* Tạm thời để text mộc cho Trang chủ và Phòng Jam */}
-          <Route
-            path="/"
-            element={
-              <h1 className="text-3xl font-bold">Trang chủ (Sắp ra mắt)</h1>
-            }
-          />
-          <Route path="/welcome-to-jamsheet" element={<Home />} />
+          <Route path="/" element={<Home />} />
           <Route path="/jam-room" element={<JamRoom />} />
           <Route path="/sheets-library" element={<SheetsLibrary />} />
           <Route path="/my-records" element={<MyRecords />} />

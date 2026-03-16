@@ -27,6 +27,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function Home() {
+  const userString = localStorage.getItem("user");
+  const user = userString ? JSON.parse(userString) : null;
+  const isLoggedIn = !!user;
+
   const decorativeIcons = [
     Music,
     Music2,
@@ -135,28 +139,53 @@ export default function Home() {
       <div className="shrink-0 relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 via-background border border-primary/10 to-background p-8 sm:p-10">
         <div className="relative z-10 max-w-2xl space-y-4">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Chào buổi tối, Phương Hà! 🌙
+            {isLoggedIn
+              ? `Chào buổi tối, ${user.username}! 🌙`
+              : "Chào mừng đến với JamSheet! 🎵"}
           </h1>
           <p className="text-muted-foreground text-lg">
-            Sẵn sàng để hòa âm chưa? Hôm nay bạn muốn bắt đầu một dự án mới hay
-            đóng góp vào các phòng Jam của cộng đồng?
+            {isLoggedIn
+              ? "Sẵn sàng để hòa âm chưa? Hôm nay bạn muốn bắt đầu một dự án mới hay đóng góp vào các phòng Jam của cộng đồng?"
+              : "Trở thành một phần của cộng đồng nhạc công không giới hạn. Đăng nhập ngay để tạo phòng Jam, đóng góp bản thu và giao lưu cùng mọi người."}
           </p>
           <div className="pt-4 flex flex-wrap gap-4">
-            <a href="/jam-room">
-              <Button className="gap-2 h-11 px-6 shadow-lg shadow-primary/25">
-                <PlusCircle className="w-5 h-5" />
-                Tạo phòng Jam mới
-              </Button>
-            </a>
-            <a href="/my-records">
-              <Button
-                variant="outline"
-                className="gap-2 h-11 px-6 bg-background/50 backdrop-blur-sm"
-              >
-                <Mic2 className="w-5 h-5" />
-                Thu âm ngẫu hứng
-              </Button>
-            </a>
+            {isLoggedIn ? (
+              <>
+                <a href="/jam-room">
+                  <Button className="gap-2 h-11 px-6 shadow-lg shadow-primary/25">
+                    <PlusCircle className="w-5 h-5" />
+                    Tạo phòng Jam mới
+                  </Button>
+                </a>
+                <a href="/my-records">
+                  <Button
+                    variant="outline"
+                    className="gap-2 h-11 px-6 bg-background/50 backdrop-blur-sm"
+                  >
+                    <Mic2 className="w-5 h-5" />
+                    Thu âm ngẫu hứng
+                  </Button>
+                </a>
+              </>
+            ) : (
+              <>
+                <>
+                  <a href="/login">
+                    <Button className="gap-2 h-11 px-8 shadow-lg shadow-primary/25">
+                      Đăng nhập
+                    </Button>
+                  </a>
+                  <a href="/register">
+                    <Button
+                      variant="outline"
+                      className="gap-2 h-11 px-8 bg-background/50 backdrop-blur-sm"
+                    >
+                      Tạo tài khoản ngay
+                    </Button>
+                  </a>
+                </>
+              </>
+            )}
           </div>
         </div>
         {/* Họa tiết trang trí góc phải */}
@@ -166,52 +195,54 @@ export default function Home() {
         />
       </div>
 
-      {/* PHẦN 2: TIẾP TỤC CÔNG VIỆC */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            <h2 className="text-2xl font-bold">Tiếp tục công việc</h2>
-          </div>
-          <Button
-            variant="ghost"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Xem tất cả <ArrowRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recentProjects.map((project) => (
-            <Card
-              key={project.id}
-              className="cursor-pointer hover:border-primary/50 transition-colors bg-card/50"
+      {/* PHẦN 2: TIẾP TỤC CÔNG VIỆC (CHỈ HIỂN THỊ KHI ĐÃ ĐĂNG NHẬP) */}
+      {isLoggedIn && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              <h2 className="text-2xl font-bold">Tiếp tục công việc</h2>
+            </div>
+            <Button
+              variant="ghost"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                  <Play className="w-5 h-5 ml-1 text-foreground" />
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <h3 className="font-bold truncate">{project.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Kệ của bạn: {project.role}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="h-1.5 flex-1 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary"
-                        style={{ width: `${project.progress}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {project.lastActive}
-                    </span>
+              Xem tất cả <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recentProjects.map((project) => (
+              <Card
+                key={project.id}
+                className="cursor-pointer hover:border-primary/50 transition-colors bg-card/50"
+              >
+                <CardContent className="p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                    <Play className="w-5 h-5 ml-1 text-foreground" />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+                  <div className="flex-1 overflow-hidden">
+                    <h3 className="font-bold truncate">{project.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Kệ của bạn: {project.role}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="h-1.5 flex-1 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary"
+                          style={{ width: `${project.progress}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {project.lastActive}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* PHẦN 3: PHÒNG CÓ TƯƠNG TÁC CAO */}
       <section className="space-y-4">
