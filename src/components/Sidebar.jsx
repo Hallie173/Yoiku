@@ -90,12 +90,14 @@ export default function Sidebar() {
             </DropdownMenuTrigger>
 
             <DropdownMenuContent side="top" className="w-56 mb-2">
-              <DropdownMenuItem className="cursor-pointer">
-                <div className="flex items-center">
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Thông tin cá nhân</span>
-                </div>
-              </DropdownMenuItem>
+              <a href="/profile" className="w-full">
+                <DropdownMenuItem className="cursor-pointer">
+                  <div className="flex items-center">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Thông tin cá nhân</span>
+                  </div>
+                </DropdownMenuItem>
+              </a>
 
               <DropdownMenuItem
                 className="cursor-pointer flex justify-between items-center"

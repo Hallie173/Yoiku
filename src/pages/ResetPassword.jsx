@@ -82,11 +82,13 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 flex flex-col items-center text-center">
+          <a href="/">
           <img
             src={whiteLogo}
             alt="JamSheet Logo"
             className="w-12 h-12 rounded-full object-cover mb-2"
           />
+          </a>
           <CardTitle className="text-2xl font-bold">Tạo mật khẩu mới</CardTitle>
           <CardDescription>
             Vui lòng nhập mật khẩu mới cho tài khoản của bạn

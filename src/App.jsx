@@ -19,6 +19,7 @@ import SheetsLibrary from "./pages/SheetsLibrary";
 import MyRecords from "./pages/MyRecords";
 import JamRoom from "./pages/JamRoom";
 import Home from "./pages/Home";
+import Profile from "./pages/Profile";
 //import JamRoom from './pages/JamRoom';
 
 const MainLayout = () => {
@@ -53,6 +54,7 @@ function App() {
           <Route path="/jam-room" element={<JamRoom />} />
           <Route path="/sheets-library" element={<SheetsLibrary />} />
           <Route path="/my-records" element={<MyRecords />} />
+          <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>
     </Router>
