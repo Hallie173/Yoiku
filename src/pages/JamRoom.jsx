@@ -16,6 +16,8 @@ import {
   Loader2,
   FileText,
   X,
+  Sparkles,
+  UploadCloud
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -73,59 +75,101 @@ export default function JamRoom() {
   const [countdownBeat, setCountDownBeat] = useState(0);
   const metronomeRef = useRef(null);
 
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const [previewAudioUrl, setPreviewAudioUrl] = useState(null);
+  const [useAiClean, setUseAiClean] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
   const timeSignatureStr = activeRoom?.timeSignature || "4/4";
   const beatsPerMeasure = parseInt(timeSignatureStr.split("/")[0]) || 4;
 
   // THUẬT TOÁN ĐẾM 2 Ô NHỊP (COUNT-IN)
-  const startRecordingFlow = () => {
+  const startRecordingFlow = async () => {
     if (!activeRoom || !recordingTrack) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
+
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setPreviewAudioUrl(audioUrl);
+        setRecordingStatus("preview");
+
+        stream.getTracks().forEach((track) => track.stop());
+      };
+    } catch (error) {
+      alert(
+        "Không thể truy cập Microphone! Vui lòng cấp quyền trong cài đặt trình duyệt.",
+      );
+      console.error(error);
+      return;
+    }
 
     setRecordingStatus("counting");
     setCountDownBeat(1);
 
-    // 1. Khởi tạo Context và tính toán thời gian
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const tempo = activeRoom.tempo || 120;
-    const secondsPerBeat = 60.0 / tempo;
+    const secondsPerBeat = 60 / tempo;
+    const timeSignatureStr = activeRoom?.timeSignature || "4/4";
+    const beatsPerMeasure = parseInt(timeSignatureStr.split("/")[0]) || 4;
+    const countInBeats = beatsPerMeasure * 2;
 
-    const totalCountBeats = beatsPerMeasure * 2;
     let currentBeat = 0;
-    let nextNoteTime = audioCtx.currentTime + 0.1; // Bắt đầu sau 100ms
+    let nextNoteTime = audioCtx.currentTime + 0.1;
 
-    // 2. Hàm tạo tiếng "Tích - Tắc" (Oscillator)
     const playClick = (time, isFirstBeatOfMeasure) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-
-      // Nhịp đầu của ô (Beat 1, Beat 5) thì tiếng cao hơn (880Hz), nhịp thường tiếng trầm (440Hz)
       osc.frequency.value = isFirstBeatOfMeasure ? 880 : 440;
-
-      // Tạo hiệu ứng âm thanh gọn, dứt khoát (Click)
       gain.gain.setValueAtTime(1, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-
       osc.start(time);
       osc.stop(time + 0.1);
     };
 
-    // 3. Vòng lặp đếm nhịp độ chính xác cao
     const scheduler = () => {
-      // Nhìn trước thời gian, nếu sắp đến nhịp tiếp theo thì lên lịch phát âm thanh
-      while (
-        nextNoteTime < audioCtx.currentTime + 0.1 &&
-        currentBeat < totalCountBeats
-      ) {
-        // Lên lịch phát tiếng Metronome
+      while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        // Metronome gõ liên tục không dừng
         playClick(nextNoteTime, currentBeat % beatsPerMeasure === 0);
 
-        // Đồng bộ giao diện React (UI) hiển thị con số đếm
         const beatNumber = currentBeat + 1;
+
+        // Xử lý Giao diện và kích hoạt Thu âm tại đúng thời điểm
         setTimeout(
           () => {
             setCountDownBeat(beatNumber);
+
+            // ĐÃ SỬA 1: KÍCH HOẠT MIC NGẦM TỪ ĐẦU Ô NHỊP THỨ 2
+            // Mục đích: Bắt trọn vẹn âm thanh lấy đà của nhạc công
+            if (
+              beatNumber === beatsPerMeasure + 1 &&
+              mediaRecorderRef.current.state === "inactive"
+            ) {
+              mediaRecorderRef.current.start();
+            }
+
+            // ĐÃ SỬA 2: CHUYỂN GIAO DIỆN SANG "ĐANG THU" TỪ ĐẦU Ô NHỊP THỨ 3
+            // Mục đích: Báo hiệu vào bài chính thức
+            if (beatNumber === countInBeats + 1) {
+              setRecordingStatus("recording");
+            }
           },
           (nextNoteTime - audioCtx.currentTime) * 1000,
         );
@@ -133,33 +177,78 @@ export default function JamRoom() {
         currentBeat++;
         nextNoteTime += secondsPerBeat;
       }
-
-      // Xử lý chuyển đổi từ Đếm nhịp -> Đang ghi âm
-      if (currentBeat >= totalCountBeats) {
-        setTimeout(
-          () => {
-            setRecordingStatus("recording");
-            // TODO: Tại đây sẽ gọi API MediaRecorder để thực sự ghi âm Mic
-            // TODO: Bắt đầu chạy hiệu ứng Auto-scroll nhạc phổ
-          },
-          (nextNoteTime - audioCtx.currentTime) * 1000,
-        );
-        return; // Kết thúc vòng lặp đếm
-      }
-
-      // Đệ quy vòng lặp
       metronomeRef.current = requestAnimationFrame(scheduler);
     };
-
     scheduler();
   };
 
   // Hàm Dừng (Hủy) quá trình thu
   const stopRecordingFlow = () => {
+    // Tắt Metronome
     if (metronomeRef.current) cancelAnimationFrame(metronomeRef.current);
+
+    // Ra lệnh cho Recorder nhả file ra (sẽ kích hoạt event onstop ở trên)
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
+      mediaRecorderRef.current.stop();
+    } else {
+      // Nếu đang đếm nhịp mà bấm Hủy thì tắt luôn
+      setRecordingStatus("idle");
+      setCountDownBeat(0);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
+    }
+  };
+
+  const cancelPreview = () => {
+    setPreviewAudioUrl(null);
     setRecordingStatus("idle");
     setCountDownBeat(0);
-    // TODO: Dừng MediaRecorder (nếu đang thu)
+  };
+
+  const handleSaveDraft = async () => {
+    if (!activeRoom || !recordingTrack) return;
+    if (audioChunksRef.current.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const file = new File([audioBlob], "draft_record.webm", { type: "audio/webm" });
+
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("instrument", recordingTrack.instrument);
+      formData.append("name", `Bản nháp - ${new Date().toLocaleTimeString()}`);
+      formData.append("status", "draft");
+      formData.append("duration", "0");
+
+      const response = await fetch(`http://localhost:5000/api/jams/${activeRoom.id}/tracks`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Lỗi khi lưu bản nháp");
+      }
+      alert("Bản nháp đã được lưu thành công!");
+
+      setRecordingTrack(null);
+      cancelPreview();
+    } catch (error) {
+      console.error("Lỗi khi lưu bản nháp:", error);
+      alert("Lỗi khi lưu bản nháp: " + error.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   useEffect(() => {
@@ -790,7 +879,7 @@ export default function JamRoom() {
               </p>
             </div>
 
-            {/* Màn hình Đếm nhịp & Nhắc nhở */}
+            {/* Màn hình Đếm nhịp & Preview */}
             <div
               className={`border rounded-xl p-8 flex flex-col items-center justify-center mb-8 flex-1 transition-colors duration-500 ${
                 recordingStatus === "recording"
@@ -798,104 +887,184 @@ export default function JamRoom() {
                   : "bg-muted/40 border-border"
               }`}
             >
-              <div className="text-center mb-6 h-32 flex flex-col justify-center">
-                <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-                  Trạng thái Metronome
-                </p>
+              {recordingStatus === "preview" ? (
+                // MÀN HÌNH PREVIEW SAU KHI THU XONG
+                <div className="w-full flex flex-col items-center space-y-6">
+                  <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                    <Check className="w-6 h-6" /> Thu âm hoàn tất!
+                  </h3>
 
-                {/* HIỂN THỊ ĐỘNG TRẠNG THÁI */}
-                <div className="text-6xl font-black text-primary font-mono tracking-tighter">
-                  {recordingStatus === "idle" && "SẴN SÀNG"}
+                  {/* Trình phát nhạc ảo */}
+                  <audio
+                    src={previewAudioUrl}
+                    controls
+                    className="w-full max-w-sm rounded-md shadow-sm"
+                  />
 
-                  {recordingStatus === "counting" && (
-                    <div className="flex flex-col items-center">
-                      <span
-                        className={
-                          countdownBeat % beatsPerMeasure === 1
-                            ? "text-destructive scale-110 transition-transform"
-                            : ""
-                        }
-                      >
-                        {countdownBeat > beatsPerMeasure
-                          ? countdownBeat - beatsPerMeasure
-                          : countdownBeat}
+                  {/* Tùy chọn AI */}
+                  <div
+                    className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border w-full max-w-sm shadow-sm cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => setUseAiClean(!useAiClean)}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded flex items-center justify-center border ${useAiClean ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"}`}
+                    >
+                      {useAiClean && <Check className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex flex-col flex-1">
+                      <span className="text-sm font-bold flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-emerald-500" /> Dùng
+                        AI lọc tạp âm
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Loại bỏ tiếng ồn nền, tiếng quạt gió...
                       </span>
                     </div>
-                  )}
+                  </div>
+                </div>
+              ) : (
+                // MÀN HÌNH ĐẾM NHỊP
+                <div className="text-center mb-6 h-32 flex flex-col justify-center">
+                  <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                    Trạng thái Metronome
+                  </p>
+                  <div className="text-6xl font-black text-primary font-mono tracking-tighter">
+                    {recordingStatus === "idle" && "SẴN SÀNG"}
+                    {recordingStatus === "counting" && (
+                      <div className="flex flex-col items-center">
+                        <span
+                          className={
+                            countdownBeat % beatsPerMeasure === 1
+                              ? "text-destructive scale-110 transition-transform"
+                              : ""
+                          }
+                        >
+                          {countdownBeat > beatsPerMeasure
+                            ? countdownBeat - beatsPerMeasure
+                            : countdownBeat}
+                        </span>
+                      </div>
+                    )}
+                    {recordingStatus === "recording" && (
+                      <span className="text-red-500 flex items-center gap-4 animate-pulse">
+                        <div className="w-6 h-6 rounded-full bg-red-500"></div>{" "}
+                        ĐANG THU
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
+              {/* Câu thông báo nhỏ bên dưới */}
+              {recordingStatus !== "preview" && (
+                <p className="text-muted-foreground font-medium text-center max-w-sm h-12">
+                  {recordingStatus === "idle" && (
+                    <>
+                      Nhịp độ là <strong>{activeRoom?.tempo} BPM</strong>. Hệ
+                      thống sẽ đếm <strong>2 ô nhịp</strong> chuẩn bị trước khi
+                      ghi âm.
+                    </>
+                  )}
+                  {recordingStatus === "counting" &&
+                    countdownBeat >
+                      (parseInt(activeRoom?.timeSignature?.split("/")[0]) ||
+                        4) && (
+                      <span className="text-foreground font-bold text-lg">
+                        Vào vị trí...
+                      </span>
+                    )}
                   {recordingStatus === "recording" && (
-                    <span className="text-red-500 flex items-center gap-4 animate-pulse">
-                      <div className="w-6 h-6 rounded-full bg-red-500"></div>{" "}
-                      ĐANG THU
+                    <span className="text-red-500">
+                      Đang thu âm! Nhạc phổ đang cuộn...
                     </span>
                   )}
-                </div>
-              </div>
-
-              <p className="text-muted-foreground font-medium text-center max-w-sm h-12">
-                {recordingStatus === "idle" && (
-                  <>
-                    Nhịp độ là <strong>{activeRoom?.tempo} BPM</strong>. Hệ
-                    thống sẽ đếm <strong>2 ô nhịp</strong> chuẩn bị trước khi
-                    ghi âm.
-                  </>
-                )}
-                {recordingStatus === "counting" && countdownBeat > 4 && (
-                  <span className="text-foreground font-bold text-lg">
-                    Vào vị trí...
-                  </span>
-                )}
-                {recordingStatus === "recording" && (
-                  <span className="text-red-500">
-                    Đang thu âm! Nhạc phổ đang cuộn...
-                  </span>
-                )}
-              </p>
+                </p>
+              )}
             </div>
 
             {/* Khối nút Hành động */}
             <div className="space-y-4 mt-auto">
-              <div className="flex items-center gap-4">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="flex-1 h-14 font-semibold text-lg"
-                  onClick={() => {
-                    stopRecordingFlow();
-                    setRecordingTrack(null);
-                  }}
-                >
-                  <Square className="w-5 h-5 mr-2" /> Hủy bỏ
-                </Button>
-
-                {recordingStatus === "idle" ? (
+              {recordingStatus === "preview" ? (
+                // NÚT CHO TRẠNG THÁI PREVIEW
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="flex-1 h-12 font-bold"
+                      onClick={cancelPreview}
+                    >
+                      Thu lại
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="secondary"
+                      className="flex-1 h-12 font-bold bg-muted hover:bg-muted/80"
+                      onClick={handleSaveDraft}
+                      disabled={isUploading}
+                    >
+                      {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {isUploading ? "Đang lưu..." : "Lưu bản nháp"}
+                    </Button>
+                  </div>
                   <Button
                     size="lg"
-                    className="flex-1 h-14 bg-red-500 hover:bg-red-600 text-white font-bold text-xl shadow-lg shadow-red-500/20"
-                    onClick={startRecordingFlow}
+                    className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20"
+                    onClick={() =>
+                      alert(
+                        "Sẽ upload file lên Cloudinary và đưa vào Bàn Mixer!",
+                      )
+                    }
                   >
-                    <Mic2 className="w-6 h-6 mr-2" /> Ghi Âm
-                  </Button>
-                ) : (
-                  <Button
-                    size="lg"
-                    className="flex-1 h-14 bg-foreground hover:bg-foreground/90 text-background font-bold text-xl"
-                    onClick={stopRecordingFlow}
-                  >
-                    <Square className="w-6 h-6 mr-2 fill-current" /> Dừng Thu
-                  </Button>
-                )}
-              </div>
-
-              {recordingStatus === "idle" && (
-                <div className="text-center">
-                  <Button
-                    variant="link"
-                    className="text-muted-foreground hover:text-primary"
-                  >
-                    Hoặc tải lên file có sẵn
+                    <UploadCloud className="w-6 h-6 mr-2" /> Xác nhận Tải lên
                   </Button>
                 </div>
+              ) : (
+                // NÚT CHO TRẠNG THÁI IDLE/RECORDING (Giữ nguyên logic cũ)
+                <>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="flex-1 h-14 font-semibold text-lg"
+                      onClick={() => {
+                        stopRecordingFlow();
+                        setRecordingTrack(null);
+                        cancelPreview();
+                      }}
+                    >
+                      <Square className="w-5 h-5 mr-2" /> Hủy bỏ
+                    </Button>
+                    {recordingStatus === "idle" ? (
+                      <Button
+                        size="lg"
+                        className="flex-1 h-14 bg-red-500 hover:bg-red-600 text-white font-bold text-xl shadow-lg shadow-red-500/20"
+                        onClick={startRecordingFlow}
+                      >
+                        <Mic2 className="w-6 h-6 mr-2" /> Ghi Âm
+                      </Button>
+                    ) : (
+                      <Button
+                        size="lg"
+                        className="flex-1 h-14 bg-foreground hover:bg-foreground/90 text-background font-bold text-xl"
+                        onClick={stopRecordingFlow}
+                      >
+                        <Square className="w-6 h-6 mr-2 fill-current" /> Dừng
+                        Thu
+                      </Button>
+                    )}
+                  </div>
+                  {recordingStatus === "idle" && (
+                    <div className="text-center">
+                      <Button
+                        variant="link"
+                        className="text-muted-foreground hover:text-primary"
+                      >
+                        Hoặc tải lên file có sẵn
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
