@@ -42,6 +42,7 @@ export default function MixerBoard() {
     setMasterVolume,
     setTrackVolume,
     saveMixToCloud,
+    addNewTrack,
   } = useJamStore();
 
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
@@ -50,6 +51,9 @@ export default function MixerBoard() {
   const [isSaving, setIsSaving] = useState(false);
   const [recordingTrack, setRecordingTrack] = useState(null);
   const [initialDraft, setInitialDraft] = useState(null);
+
+  const [isAddingTrack, setIsAddingTrack] = useState(false);
+  const [newInstrumentName, setNewInstrumentName] = useState("");
 
   const audioCtxRef = useRef(null);
   const masterGainRef = useRef(null);
@@ -65,7 +69,8 @@ export default function MixerBoard() {
     .filter((t) => t.activeRecordId)
     .map((t) => t.id);
   const activeDurations = activeTrackIds.map((id) => trackDurations[id] || 0);
-  const actualAudioDuration = activeDurations.length > 0 ? Math.max(...activeDurations) : 0;
+  const actualAudioDuration =
+    activeDurations.length > 0 ? Math.max(...activeDurations) : 0;
   const maxAudioDuration = Math.max(15, ...activeDurations);
 
   useEffect(() => {
@@ -73,7 +78,6 @@ export default function MixerBoard() {
     actualAudioDurationRef.current = actualAudioDuration;
   }, [maxAudioDuration, actualAudioDuration]);
 
-  // LOGIC TỰ ĐỘNG BẬT BẢN NHÁP
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const draftId = params.get("draftId");
@@ -190,7 +194,8 @@ export default function MixerBoard() {
           const currentTime =
             audioCtxRef.current.currentTime - startTimeRef.current;
 
-            const targetStopTime = actualAudioDurationRef.current > 0
+          const targetStopTime =
+            actualAudioDurationRef.current > 0
               ? actualAudioDurationRef.current
               : maxAudioDurationRef.current;
           if (currentTime >= targetStopTime) {
@@ -266,6 +271,21 @@ export default function MixerBoard() {
           sourcesRef.current[track.id] = source;
         }
       });
+    }
+  };
+
+  // ĐÃ SỬA: Tính năng Auto-Save khi vừa thêm nhạc cụ
+  const handleAddNewTrack = () => {
+    if (!newInstrumentName.trim()) return;
+    addNewTrack(newInstrumentName.trim());
+    setNewInstrumentName("");
+    setIsAddingTrack(false);
+
+    // Tự động lưu cấu hình lên server để chống mất dữ liệu khi F5
+    if (activeRoom?.id) {
+      setTimeout(() => {
+        saveMixToCloud(activeRoom.id);
+      }, 100); // Đợi 100ms cho Zustand cập nhật RAM xong mới đẩy lên Cloud
     }
   };
 
@@ -511,10 +531,48 @@ export default function MixerBoard() {
                 </div>
               </Card>
             ))}
-            <div className="pt-1">
-              <Button variant="outline" className="w-full border-dashed">
-                <Plus className="w-4 h-4 mr-1" /> Thêm kệ nhạc cụ
-              </Button>
+            <div className="pt-1 pb-4">
+              {isAddingTrack ? (
+                <div className="flex flex-col gap-2 bg-muted/30 p-2.5 rounded-lg border border-border shadow-inner animate-in fade-in zoom-in-95 duration-200">
+                  <input
+                    type="text"
+                    placeholder="VD: Violin..."
+                    className="w-full text-sm font-medium bg-background border border-border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={newInstrumentName}
+                    onChange={(e) => setNewInstrumentName(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddNewTrack();
+                      if (e.key === "Escape") setIsAddingTrack(false);
+                    }}
+                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-7 text-xs"
+                      onClick={() => setIsAddingTrack(false)}
+                    >
+                      Hủy
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 h-7 text-xs"
+                      onClick={handleAddNewTrack}
+                    >
+                      Thêm Kệ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed hover:border-primary hover:text-primary transition-colors h-10"
+                  onClick={() => setIsAddingTrack(true)}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> Thêm kệ nhạc cụ
+                </Button>
+              )}
             </div>
           </div>
         </div>

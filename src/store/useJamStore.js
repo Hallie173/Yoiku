@@ -1,15 +1,13 @@
 import { create } from "zustand";
 
 export const useJamStore = create((set, get) => ({
-  // XÓA DỮ LIỆU GIẢ, THAY BẰNG DỮ LIỆU TRỐNG
   activeRoom: null,
   currentTracks: [],
   isPlaying: false,
   masterVolume: 100,
-  isLoadingRoom: false, // State để hiển thị vòng quay Loading
+  isLoadingRoom: false,
   errorMsg: null,
 
-  // HÀM MỚI: Gọi API lên Backend lấy dữ liệu phòng theo ID
   fetchJamRoomData: async (roomId) => {
     set({ isLoadingRoom: true, errorMsg: null });
     try {
@@ -23,7 +21,6 @@ export const useJamStore = create((set, get) => ({
       if (!response.ok)
         throw new Error(data.message || "Không thể tải phòng Jam");
 
-      // Cập nhật State với dữ liệu thật từ MongoDB
       set({
         activeRoom: data,
         currentTracks: data.tracks,
@@ -46,14 +43,30 @@ export const useJamStore = create((set, get) => ({
     }));
   },
 
-  setMasterVolume: (value) => set({ masterVolume: value }),
+  addNewTrack: (instrumentName) => {
+    set((state) => {
+      const colorPalette = [
+        "#3b82f6",
+        "#10b981",
+        "#f59e0b",
+        "#ef4444",
+        "#8b5cf6",
+      ];
+      const newIndex = state.currentTracks.length;
 
-  setTrackVolume: (trackId, volume) => {
-    set((state) => ({
-      currentTracks: state.currentTracks.map((t) =>
-        t.id === trackId ? { ...t, volume: volume } : t,
-      ),
-    }));
+      const newTrack = {
+        id: `custom_track_${Date.now()}`,
+        instrument: instrumentName,
+        user: "Đang chờ nộp...",
+        avatar: "",
+        waveColor: colorPalette[newIndex % colorPalette.length],
+        volume: 80,
+        activeRecordId: null,
+        records: [],
+      };
+
+      return { currentTracks: [...state.currentTracks, newTrack] };
+    });
   },
 
   addRecordToTrack: (instrument, newRecord) => {
@@ -71,13 +84,29 @@ export const useJamStore = create((set, get) => ({
     }));
   },
 
+  setMasterVolume: (value) => set({ masterVolume: value }),
+
+  setTrackVolume: (trackId, volume) => {
+    set((state) => ({
+      currentTracks: state.currentTracks.map((t) =>
+        t.id === trackId ? { ...t, volume: volume } : t,
+      ),
+    }));
+  },
+
   saveMixToCloud: async (projectId) => {
     const { currentTracks } = get();
-    const formattedTracksConfig = currentTracks.map((track) => ({
-      instrument: track.instrument,
-      volume: track.volume,
-      active_record_id: track.activeRecordId || null,
-    }));
+    const formattedTracksConfig = currentTracks.map((track) => {
+      const conf = {
+        instrument: track.instrument,
+        volume: track.volume,
+      };
+      // ĐÃ SỬA: Chỉ gửi ID lên Database nếu nó thực sự tồn tại (khác null)
+      if (track.activeRecordId) {
+        conf.active_record_id = track.activeRecordId;
+      }
+      return conf;
+    });
 
     try {
       const response = await fetch(

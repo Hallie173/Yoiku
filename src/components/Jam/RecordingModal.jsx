@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { useJamStore } from "@/store/useJamStore";
+import RealWaveform from "@/components/RealWaveform";
 
 const MetronomeWaveform = ({
   beatsPerMeasure,
@@ -42,7 +43,6 @@ const MetronomeWaveform = ({
       {beats.map((beat) => {
         const isActive = isPlaying && currentBeat === beat.id;
 
-        // Màu sắc: Đếm ngược (Vàng/Cam), Chính thức (Xanh), Nhịp đầu (Đậm hơn)
         const baseColor = beat.isCountIn
           ? "bg-orange-400/70 dark:bg-orange-500/60"
           : "bg-primary/70";
@@ -50,19 +50,16 @@ const MetronomeWaveform = ({
           ? "bg-orange-500 dark:bg-orange-400"
           : "bg-primary";
         const height = beat.isFirstBeatOfMeasure ? "h-full" : "h-3/5";
-        const width = "flex-1"; // Chia đều chiều rộng
+        const width = "flex-1"; 
 
         return (
           <div
             key={beat.id}
             className={`${width} ${height} ${isActive ? activeColor : baseColor} rounded-sm transition-all duration-100 relative group`}
           >
-            {/* Đường kẻ dọc phân chia 2 phần (Đếm ngược | Chính thức) */}
             {beat.id === countInBeats && (
               <div className="absolute right-0 top-0 bottom-0 w-px bg-foreground/50 z-10" />
             )}
-
-            {/* Tooltip hiện số nhịp khi hover */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-[10px] rounded shadow-md opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
               {beat.isCountIn
                 ? `Đếm: ${beat.id}`
@@ -71,17 +68,6 @@ const MetronomeWaveform = ({
           </div>
         );
       })}
-
-      {/* Nhãn phân chia */}
-      <div className="absolute top-1 left-2 text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
-        Đếm ngược
-      </div>
-      <div
-        className="absolute top-1 text-[10px] font-bold text-primary uppercase tracking-wider"
-        style={{ left: `calc(${(countInBeats / totalBeats) * 100}% + 8px)` }}
-      >
-        Chính thức
-      </div>
     </div>
   );
 };
@@ -112,7 +98,7 @@ const CustomPreviewPlayer = ({
       try {
         sourceRef.current.stop();
       } catch (e) {
-        // Ignore if already stopped
+        console.warn("Nguồn âm thanh đã dừng hoặc không thể dừng:", e);
       }
       sourceRef.current = null;
     }
@@ -135,17 +121,14 @@ const CustomPreviewPlayer = ({
     setIsPlaying(true);
     setCurrentBeat(1);
 
-    // 1. Khởi tạo AudioContext
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     audioCtxRef.current = audioCtx;
 
     try {
-      // 2. Tải và giải mã audio
       const response = await fetch(previewAudioUrl);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-      // 3. Lên lịch metronome
       let nextNoteTime = audioCtx.currentTime + 0.1;
       let beatCounter = 0;
 
@@ -166,7 +149,6 @@ const CustomPreviewPlayer = ({
           playClick(nextNoteTime, beatCounter % beatsPerMeasure === 0);
           beatCounter++;
 
-          // Cập nhật beat hiện tại
           setTimeout(
             () => {
               setCurrentBeat(beatCounter);
@@ -180,27 +162,22 @@ const CustomPreviewPlayer = ({
       };
       scheduler();
 
-      // 4. Lên lịch phát Audio với OFFSET
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
       sourceRef.current = source;
 
       const offsetSeconds = syncOffset / 1000;
-      // Bắt đầu phát cùng lúc với tiếng Click đầu tiên của phần "Chính thức"
-      const startTime =
-        audioCtx.currentTime + 0.1 + countInBeats * secondsPerBeat;
+      const micStartDelayBeats = beatsPerMeasure;
+      const startTime = audioCtx.currentTime + 0.1 + (micStartDelayBeats * secondsPerBeat);
 
       if (offsetSeconds >= 0) {
-        // Trễ hơn: Đợi một lúc rồi mới phát
         source.start(startTime + offsetSeconds);
       } else {
-        // Sớm hơn: Phát ngay, nhưng cắt bỏ phần đầu
         const cutStart = Math.abs(offsetSeconds);
         source.start(startTime, cutStart);
       }
 
-      // 5. Dừng khi audio kết thúc
       source.onended = () => {
         stopPlayBack();
       };
@@ -212,13 +189,9 @@ const CustomPreviewPlayer = ({
   };
 
   useEffect(() => {
-    return () => {
-      stopPlayBack();
-    };
+    return () => stopPlayBack();
   }, []);
 
-  // Tính tổng số nhịp hiển thị (Đếm ngược + Chính thức)
-  // Giả định bản thu dài tối đa 60s để vẽ khung
   const totalBeatsToDisplay = countInBeats + Math.ceil(60 / secondsPerBeat);
 
   return (
@@ -228,12 +201,23 @@ const CustomPreviewPlayer = ({
         <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider pl-1">
           Metronome (Chuẩn nhịp)
         </Label>
-        <MetronomeWaveform
-          beatsPerMeasure={beatsPerMeasure}
-          totalBeats={totalBeatsToDisplay}
-          currentBeat={currentBeat}
-          isPlaying={isPlaying}
-        />
+        <div className="relative">
+          <div className="absolute top-1 left-1 text-[9px] font-bold text-orange-500 bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20">
+            Chuẩn bị
+          </div>
+          <div
+            className="absolute top-1 text-[9px] font-bold text-primary bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20"
+            style={{ left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + 4px)` }}
+          >
+            Chính thức
+          </div>
+          <MetronomeWaveform
+            beatsPerMeasure={beatsPerMeasure}
+            totalBeats={totalBeatsToDisplay}
+            currentBeat={currentBeat}
+            isPlaying={isPlaying}
+          />
+        </div>
       </div>
 
       {/* DẢI 2: SÓNG ÂM BẢN THU (KÉO TRƯỢT) */}
@@ -242,29 +226,37 @@ const CustomPreviewPlayer = ({
           Bản thu của bạn
         </Label>
         <div className="w-full h-16 bg-muted/20 rounded-md border border-border relative overflow-hidden">
-          {/* VẼ SÓNG ÂM BẢN THU Ở ĐÂY (Sử dụng RealWaveform hoặc một thư viện vẽ sóng âm) */}
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground opacity-50">
-            [ Sóng âm bản thu ]
-          </div>
+          {previewAudioUrl ? (
+            <div 
+              className="absolute top-0 bottom-0 z-0 transition-all duration-100"
+              style={{
+                left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${(syncOffset / 1000 / (totalBeatsToDisplay * secondsPerBeat)) * 100}%)`,
+                right: 0
+              }}
+            >
+              <RealWaveform 
+                audioUrl={previewAudioUrl} 
+                color="#3b82f6" 
+                playbackTime={0} 
+                maxDuration={(totalBeatsToDisplay - countInBeats) * secondsPerBeat} 
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground opacity-50">
+              [ Đang xử lý sóng âm... ]
+            </div>
+          )}
 
-          {/* Kim đồng hồ preview */}
           {isPlaying && currentBeat > countInBeats && (
             <div
-              className="absolute top-0 bottom-0 w-px bg-primary z-10 shadow-[0_0_10px_rgba(255,255,255,0.5)] pointer-events-none"
+              className="absolute top-0 bottom-0 w-px bg-primary z-20 shadow-[0_0_10px_rgba(255,255,255,0.8)] pointer-events-none"
               style={{
                 left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${((currentBeat - countInBeats) / (totalBeatsToDisplay - countInBeats)) * (1 - countInBeats / totalBeatsToDisplay) * 100}%)`,
               }}
-            />
+            >
+              <div className="absolute -top-1 -left-1 w-2 h-2 rotate-45 bg-primary"></div>
+            </div>
           )}
-
-          {/* Hiệu ứng trượt Offset (Chỉ vẽ khung, logic trượt cần tích hợp vào RealWaveform) */}
-          <div
-            className="absolute inset-y-0 bg-primary/5 border-l-2 border-primary/30"
-            style={{
-              left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${(syncOffset / 1000 / secondsPerBeat / totalBeatsToDisplay) * 100}%)`,
-              width: "4px",
-            }}
-          />
         </div>
       </div>
 
@@ -300,8 +292,7 @@ const CustomPreviewPlayer = ({
             className="w-full"
           />
           <p className="text-[10px] text-muted-foreground text-center italic">
-            *Kéo thanh trượt sao cho đỉnh sóng âm bản thu khớp với vạch
-            Metronome
+            *Kéo thanh trượt sao cho đỉnh sóng âm bản thu khớp với vạch Metronome
           </p>
         </div>
       </div>
@@ -323,6 +314,10 @@ export default function RecordingModal({
   const [syncOffset, setSyncOffset] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [saveTargetStatus, setSaveTargetStatus] = useState("draft");
+  const [customTrackName, setCustomTrackName] = useState("");
+
   const addRecordToTrack = useJamStore((state) => state.addRecordToTrack);
 
   const metronomeRef = useRef(null);
@@ -336,9 +331,7 @@ export default function RecordingModal({
     if (initialDraft) {
       setPreviewAudioUrl(initialDraft.raw_audio_url);
       setRecordingStatus("preview");
-      // Load offset cũ nếu có
-      if (initialDraft.sync_offset_ms)
-        setSyncOffset(initialDraft.sync_offset_ms);
+      if (initialDraft.sync_offset_ms) setSyncOffset(initialDraft.sync_offset_ms);
     }
   }, [initialDraft]);
 
@@ -367,9 +360,7 @@ export default function RecordingModal({
         stream.getTracks().forEach((track) => track.stop());
       };
     } catch (error) {
-      alert(
-        "Không thể truy cập Microphone! Vui lòng cấp quyền trong cài đặt trình duyệt.",
-      );
+      alert("Không thể truy cập Microphone! Vui lòng cấp quyền trong cài đặt trình duyệt.");
       console.error(error);
       return;
     }
@@ -437,9 +428,7 @@ export default function RecordingModal({
       setRecordingStatus("idle");
       setCountDownBeat(0);
       if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream
-          .getTracks()
-          .forEach((track) => track.stop());
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
       }
     }
   };
@@ -451,8 +440,10 @@ export default function RecordingModal({
     audioChunksRef.current = [];
   };
 
-  const handleSaveTrack = async (targetStatus = "draft") => {
+  // ĐÃ SỬA: Xóa bỏ tham số mặc định để tránh nhận nhầm Event Object từ onClick
+  const executeSaveTrack = async () => {
     setIsUploading(true);
+    setIsNameModalOpen(false);
     try {
       const formData = new FormData();
       if (audioChunksRef.current.length > 0) {
@@ -465,14 +456,11 @@ export default function RecordingModal({
         formData.append("audio", file);
       }
       formData.append("instrument", recordingTrack.instrument);
-      formData.append("status", targetStatus);
-      //Đặt tên mặc định
-      formData.append(
-        "name",
-        targetStatus === "published"
-          ? `Track ${recordingTrack.instrument} - ${new Date().toLocaleDateString()}`
-          : `Draft ${new Date().toLocaleDateString()}`,
-      );
+      
+      // Lấy trực tiếp từ biến state
+      formData.append("status", saveTargetStatus);
+      const finalName = customTrackName.trim() || (saveTargetStatus === "published" ? `Take ${recordingTrack.instrument}` : "Bản nháp");
+      formData.append("name", finalName);
       formData.append("sync_offset_ms", syncOffset);
       formData.append("use_ai_clean", useAiClean);
 
@@ -492,11 +480,11 @@ export default function RecordingModal({
       if (!response.ok) throw new Error(data.message || "Lỗi không xác định");
 
       //Cập nhật zustand để vẽ sóng âm
-      if (targetStatus === "published") {
+      if (saveTargetStatus === "published") {
         addRecordToTrack(recordingTrack.instrument, {
-          id: data.track.id,
+          id: data.track._id,
           name: data.track.name,
-          audioUrl: data.track.audio_url,
+          audioUrl: data.track.raw_audio_url,
           syncOffset: data.track.sync_offset_ms || 0,
         });
         alert("Đã nộp bản thu vào Bàn Mixer!");
@@ -515,6 +503,12 @@ export default function RecordingModal({
       setIsUploading(false);
     }
   };
+
+  const openNameModal = (status) => {
+    setSaveTargetStatus(status);
+    setCustomTrackName(status === "published" ? `Take ${recordingTrack.instrument}` : "Bản nháp");
+    setIsNameModalOpen(true);
+  }; // ĐÃ ĐÓNG NGOẶC HÀM NÀY
 
   const handleClose = () => {
     stopRecordingFlow();
@@ -552,7 +546,7 @@ export default function RecordingModal({
         </div>
       </div>
 
-      {/* NỬA PHẢI: PHÒNG THU & CĂN CHỈNH */}
+      {/* NỬA PHẢI: PHÒNG THU & ĐIỀU CHỈNH */}
       <div className="w-1/2 lg:w-2/5 p-6 flex flex-col h-full bg-card shadow-2xl relative overflow-y-auto custom-scrollbar">
         <Button
           variant="ghost"
@@ -578,23 +572,24 @@ export default function RecordingModal({
           className={`border rounded-xl p-6 flex flex-col items-center mb-6 flex-1 transition-colors duration-500 ${recordingStatus === "recording" ? "bg-red-500/10 border-red-500/50" : "bg-muted/40 border-border"}`}
         >
           {recordingStatus === "preview" ? (
-            // GIAO DIỆN PREVIEW & CĂN CHỈNH MỚI
+            // GIAO DIỆN PREVIEW & CĂN CHỈNH
             <div className="w-full flex flex-col items-center gap-6 flex-1">
               <h3 className="text-xl font-bold text-primary flex items-center gap-2 shrink-0">
                 <Check className="w-6 h-6" /> Thu âm hoàn tất!
               </h3>
 
-              {/* TRÌNH PHÁT TÙY CHỈNH SONG SONG 2 DẢI SÓNG */}
+              {/* PHÁT SONG SONG 2 DẢI SÓNG */}
               <div className="w-full flex-1 flex items-center justify-center">
                 <CustomPreviewPlayer
                   previewAudioUrl={previewAudioUrl}
                   activeRoom={activeRoom}
                   syncOffset={syncOffset}
                   setSyncOffset={setSyncOffset}
+                  useAiClean={useAiClean}
                 />
               </div>
 
-              {/* TÙY CHỌN AI (CHUYỂN XUỐNG DƯỚI) */}
+              {/* AI */}
               <div
                 className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border w-full max-w-sm shadow-sm cursor-pointer hover:border-primary/50 transition-colors shrink-0"
                 onClick={() => setUseAiClean(!useAiClean)}
@@ -616,7 +611,7 @@ export default function RecordingModal({
               </div>
             </div>
           ) : (
-            // GIAO DIỆN ĐANG THU (GIỮ NGUYÊN)
+            // GIAO DIỆN ĐANG THU
             <div className="w-full h-full flex flex-col items-center justify-center">
               <div className="text-center mb-6 h-32 flex flex-col justify-center">
                 <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4">
@@ -672,10 +667,31 @@ export default function RecordingModal({
           )}
         </div>
 
-        {/* KHU VỰC NÚT BẤM (DƯỚI CÙNG) */}
-        <div className="space-y-4 mt-auto shrink-0">
+        {/* KHU VỰC NÚT BẤM */}
+        <div className="space-y-4 mt-auto shrink-0 relative">
+          {isNameModalOpen && (
+            <div className="absolute inset-x-0 bottom-full mb-4 bg-card border border-border shadow-xl rounded-xl p-5 z-20 animate-in slide-in-from-bottom-4 duration-200">
+              <h4 className="font-bold mb-2 flex items-center gap-2 text-foreground">
+                <FileText className="w-4 h-4 text-primary" />
+                Đặt tên cho {saveTargetStatus === "published" ? "Bản thu chính thức" : "Bản nháp"}
+              </h4>
+              <input 
+                type="text" 
+                value={customTrackName}
+                onChange={(e) => setCustomTrackName(e.target.value)}
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-4"
+                placeholder="VD: Guitar Solo (Take 2)..."
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && executeSaveTrack()}
+              />
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setIsNameModalOpen(false)}>Hủy</Button>
+                <Button className="flex-1" onClick={executeSaveTrack}>Lưu ngay</Button>
+              </div>
+            </div>
+          )}
           {recordingStatus === "preview" ? (
-            <div className="flex flex-col gap-3">
+            <div className={`flex flex-col gap-3 transition-opacity ${isNameModalOpen ? "opacity-30 pointer-events-none" : ""}`}>
               <div className="flex items-center gap-3">
                 <Button
                   size="lg"
@@ -689,19 +705,19 @@ export default function RecordingModal({
                   size="lg"
                   variant="secondary"
                   className="flex-1 h-12 font-bold bg-muted hover:bg-muted/80"
-                  onClick={() => handleSaveTrack("draft")}
+                  onClick={() => openNameModal("draft")}
                   disabled={isUploading}
                 >
                   {isUploading && (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   )}{" "}
-                  {isUploading ? "Đang lưu..." : "Lưu bản nháp"}
+                  {isUploading ? "Đang xử lý..." : "Lưu bản nháp"}
                 </Button>
               </div>
               <Button
                 size="lg"
                 className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20"
-                onClick={() => handleSaveTrack("published")}
+                onClick={() => openNameModal("published")}
                 disabled={isUploading}
               >
                 <UploadCloud className="w-6 h-6 mr-2" /> Xác nhận Nộp bản thu

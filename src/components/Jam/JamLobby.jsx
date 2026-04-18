@@ -5,15 +5,17 @@ import { Button } from "@/components/ui/button";
 export default function JamLobby() {
   const [myLobbyRooms, setMyLobbyRooms] = useState([]);
   const [collabLobbyRooms, setCollabLobbyRooms] = useState([]);
-  const [isLoadingLobby, setIsLoadingLobby] = useState(false);
+  const [isLoadingLobby, setIsLoadingLobby] = useState(true);
 
   useEffect(() => {
+    // Hàm gọi API chỉ chạy 1 lần duy nhất mỗi khi người dùng mở trang này
     const fetchLobbyJams = async () => {
       setIsLoadingLobby(true);
       try {
         const response = await fetch("http://localhost:5000/api/jams/lobby", {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
+
         if (response.ok) {
           const data = await response.json();
           setMyLobbyRooms(data.myRooms);
@@ -25,43 +27,54 @@ export default function JamLobby() {
         setIsLoadingLobby(false);
       }
     };
-    fetchLobbyJams();
-  }, []);
 
-  const renderRoomCard = (room) => (
-    <div
-      key={room._id}
-      onClick={() => (window.location.href = `/jam-room?id=${room._id}`)}
-      className="group cursor-pointer border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors bg-card shadow-sm hover:shadow-md flex flex-col h-32 relative"
-    >
-      <div className="p-4 flex-1">
-        <h3 className="font-bold text-base mb-1 truncate group-hover:text-primary transition-colors pr-8">
-          {room.title}
-        </h3>
-        <div className="flex items-center gap-4 text-[11px] text-muted-foreground mt-2">
-          <div className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded">
-            <Clock className="w-3 h-3" />
-            <span>{room.tempo} BPM</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded">
-            <Users className="w-3 h-3" />
-            <span>{room.required_instruments?.length || 0} Nhạc cụ</span>
+    fetchLobbyJams();
+  }, []); // Cặp ngoặc vuông rỗng đảm bảo chỉ chạy khi Component được Mount (mở trang)
+
+  const renderRoomCard = (room) => {
+    // Vẫn giữ nguyên logic lấy số lượng nhạc cụ chính xác nhất
+    const totalInstruments = Math.max(
+      room.tracks_config?.length || 0,
+      room.required_instruments?.length || 0,
+    );
+
+    return (
+      <div
+        key={room._id}
+        onClick={() => (window.location.href = `/jam-room?id=${room._id}`)}
+        className="group cursor-pointer border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors bg-card shadow-sm hover:shadow-md flex flex-col h-32 relative"
+      >
+        <div className="p-4 flex-1">
+          <h3 className="font-bold text-base mb-1 truncate group-hover:text-primary transition-colors pr-8">
+            {room.title}
+          </h3>
+          <div className="flex items-center gap-4 text-[11px] text-muted-foreground mt-2">
+            <div className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded">
+              <Clock className="w-3 h-3" />
+              <span>{room.tempo} BPM</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded transition-colors duration-300 group-hover:bg-primary/10 group-hover:text-primary">
+              <Users className="w-3 h-3" />
+              <span className="font-medium">{totalInstruments} Nhạc cụ</span>
+            </div>
           </div>
         </div>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+          <Play className="w-4 h-4 text-primary ml-0.5" />
+        </div>
       </div>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-        <Play className="w-4 h-4 text-primary ml-0.5" />
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col h-full bg-background border border-border rounded-xl overflow-y-auto custom-scrollbar p-8">
-      <div className="mb-8 border-b border-border pb-4">
-        <h1 className="text-3xl font-bold tracking-tight">Sảnh Hợp Tấu</h1>
-        <p className="text-muted-foreground mt-1">
-          Quản lý và tham gia các dự án âm nhạc của bạn.
-        </p>
+      <div className="mb-8 border-b border-border pb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sảnh Hợp Tấu</h1>
+          <p className="text-muted-foreground mt-1">
+            Quản lý và tham gia các dự án âm nhạc của bạn.
+          </p>
+        </div>
       </div>
 
       {isLoadingLobby ? (
