@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, use } from "react";
 import {
   Mic2,
   Square,
@@ -50,7 +50,7 @@ const MetronomeWaveform = ({
           ? "bg-orange-500 dark:bg-orange-400"
           : "bg-primary";
         const height = beat.isFirstBeatOfMeasure ? "h-full" : "h-3/5";
-        const width = "flex-1"; 
+        const width = "flex-1";
 
         return (
           <div
@@ -85,11 +85,17 @@ const CustomPreviewPlayer = ({
   const sourceRef = useRef(null);
   const metronomeRef = useRef(null);
 
+  const scrollContainerRef = useRef(null);
+
   const tempo = activeRoom?.tempo || 120;
   const timeSignatureStr = activeRoom?.timeSignature || "4/4";
   const beatsPerMeasure = parseInt(timeSignatureStr.split("/")[0]) || 4;
   const secondsPerBeat = 60 / tempo;
   const countInBeats = beatsPerMeasure * 2;
+
+  const totalBeatsToDisplay = countInBeats + Math.ceil(60 / secondsPerBeat);
+
+  const PIXELS_PER_BEAT = 35;
 
   const stopPlayBack = () => {
     setIsPlaying(false);
@@ -169,7 +175,8 @@ const CustomPreviewPlayer = ({
 
       const offsetSeconds = syncOffset / 1000;
       const micStartDelayBeats = beatsPerMeasure;
-      const startTime = audioCtx.currentTime + 0.1 + (micStartDelayBeats * secondsPerBeat);
+      const startTime =
+        audioCtx.currentTime + 0.1 + micStartDelayBeats * secondsPerBeat;
 
       if (offsetSeconds >= 0) {
         source.start(startTime + offsetSeconds);
@@ -192,71 +199,106 @@ const CustomPreviewPlayer = ({
     return () => stopPlayBack();
   }, []);
 
-  const totalBeatsToDisplay = countInBeats + Math.ceil(60 / secondsPerBeat);
+  useEffect(() => {
+    if (isPlaying && scrollContainerRef.current && currentBeat > 0) {
+      const container = scrollContainerRef.current;
+      const playHeadX =
+        (currentBeat / totalBeatsToDisplay) * container.scrollWidth;
+
+      const visibleRightEdge = container.scrollLeft + container.clientWidth;
+
+      if (playHeadX > visibleRightEdge - container.clientWidth * 0.3) {
+        container.scrollTo({
+          left: playHeadX - container.clientWidth * 0.3,
+          behavior: "smooth",
+        });
+      }
+    } else if (!isPlaying && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ left: 0, behavior: "smooth" });
+    }
+  }, [currentBeat, isPlaying, totalBeatsToDisplay]);
 
   return (
     <div className="w-full flex flex-col gap-3">
-      {/* DẢI 1: SÓNG ÂM METRONOME (CỐ ĐỊNH) */}
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider pl-1">
-          Metronome (Chuẩn nhịp)
-        </Label>
-        <div className="relative">
-          <div className="absolute top-1 left-1 text-[9px] font-bold text-orange-500 bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20">
-            Chuẩn bị
-          </div>
-          <div
-            className="absolute top-1 text-[9px] font-bold text-primary bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20"
-            style={{ left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + 4px)` }}
-          >
-            Chính thức
-          </div>
-          <MetronomeWaveform
-            beatsPerMeasure={beatsPerMeasure}
-            totalBeats={totalBeatsToDisplay}
-            currentBeat={currentBeat}
-            isPlaying={isPlaying}
-          />
-        </div>
-      </div>
-
-      {/* DẢI 2: SÓNG ÂM BẢN THU (KÉO TRƯỢT) */}
-      <div className="flex flex-col gap-1.5 relative">
-        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider pl-1">
-          Bản thu của bạn
-        </Label>
-        <div className="w-full h-16 bg-muted/20 rounded-md border border-border relative overflow-hidden">
-          {previewAudioUrl ? (
-            <div 
-              className="absolute top-0 bottom-0 z-0 transition-all duration-100"
-              style={{
-                left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${(syncOffset / 1000 / (totalBeatsToDisplay * secondsPerBeat)) * 100}%)`,
-                right: 0
-              }}
-            >
-              <RealWaveform 
-                audioUrl={previewAudioUrl} 
-                color="#3b82f6" 
-                playbackTime={0} 
-                maxDuration={(totalBeatsToDisplay - countInBeats) * secondsPerBeat} 
+      {/* VÙNG CHỨA CÓ THANH CUỘN (SCROLL WRAPPER) */}
+      <div
+        ref={scrollContainerRef}
+        className="w-full overflow-x-auto pb-4 pt-1 custom-scrollbar border border-border/50 rounded-xl bg-card shadow-inner"
+      >
+        {/* KHUNG CỐ ĐỊNH CHIỀU RỘNG (BỊ KÉO DÃN BỞI PIXELS_PER_BEAT) */}
+        <div
+          className="flex flex-col gap-5 relative px-3"
+          style={{
+            width: `max(100%, ${totalBeatsToDisplay * PIXELS_PER_BEAT}px)`,
+          }}
+        >
+          {/* DẢI 1: SÓNG ÂM METRONOME (CỐ ĐỊNH) */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider pl-1">
+              Metronome (Chuẩn nhịp)
+            </Label>
+            <div className="relative">
+              <div className="absolute top-1 left-1 text-[9px] font-bold text-orange-500 bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20">
+                Chuẩn bị
+              </div>
+              <div
+                className="absolute top-1 text-[9px] font-bold text-primary bg-background/90 px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider z-20"
+                style={{
+                  left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + 4px)`,
+                }}
+              >
+                Chính thức
+              </div>
+              <MetronomeWaveform
+                beatsPerMeasure={beatsPerMeasure}
+                totalBeats={totalBeatsToDisplay}
+                currentBeat={currentBeat}
+                isPlaying={isPlaying}
               />
             </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground opacity-50">
-              [ Đang xử lý sóng âm... ]
-            </div>
-          )}
+          </div>
 
-          {isPlaying && currentBeat > countInBeats && (
-            <div
-              className="absolute top-0 bottom-0 w-px bg-primary z-20 shadow-[0_0_10px_rgba(255,255,255,0.8)] pointer-events-none"
-              style={{
-                left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${((currentBeat - countInBeats) / (totalBeatsToDisplay - countInBeats)) * (1 - countInBeats / totalBeatsToDisplay) * 100}%)`,
-              }}
-            >
-              <div className="absolute -top-1 -left-1 w-2 h-2 rotate-45 bg-primary"></div>
+          {/* DẢI 2: SÓNG ÂM BẢN THU (KÉO TRƯỢT) */}
+          <div className="flex flex-col gap-1.5 relative">
+            <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider pl-1">
+              Bản thu của bạn
+            </Label>
+            <div className="w-full h-16 bg-muted/20 rounded-md border border-border relative overflow-hidden">
+              {previewAudioUrl ? (
+                <div
+                  className="absolute top-0 bottom-0 z-0 transition-all duration-100"
+                  style={{
+                    left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${(syncOffset / 1000 / (totalBeatsToDisplay * secondsPerBeat)) * 100}%)`,
+                    right: 0,
+                  }}
+                >
+                  <RealWaveform
+                    audioUrl={previewAudioUrl}
+                    color="#3b82f6"
+                    playbackTime={0}
+                    maxDuration={
+                      (totalBeatsToDisplay - countInBeats) * secondsPerBeat
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground opacity-50">
+                  [ Đang xử lý sóng âm... ]
+                </div>
+              )}
+
+              {isPlaying && currentBeat > countInBeats && (
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-primary z-20 shadow-[0_0_10px_rgba(255,255,255,0.8)] pointer-events-none"
+                  style={{
+                    left: `calc(${(countInBeats / totalBeatsToDisplay) * 100}% + ${((currentBeat - countInBeats) / (totalBeatsToDisplay - countInBeats)) * (1 - countInBeats / totalBeatsToDisplay) * 100}%)`,
+                  }}
+                >
+                  <div className="absolute -top-1 -left-1 w-2 h-2 rotate-45 bg-primary"></div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -331,7 +373,8 @@ export default function RecordingModal({
     if (initialDraft) {
       setPreviewAudioUrl(initialDraft.raw_audio_url);
       setRecordingStatus("preview");
-      if (initialDraft.sync_offset_ms) setSyncOffset(initialDraft.sync_offset_ms);
+      if (initialDraft.sync_offset_ms)
+        setSyncOffset(initialDraft.sync_offset_ms);
     }
   }, [initialDraft]);
 
@@ -360,7 +403,9 @@ export default function RecordingModal({
         stream.getTracks().forEach((track) => track.stop());
       };
     } catch (error) {
-      alert("Không thể truy cập Microphone! Vui lòng cấp quyền trong cài đặt trình duyệt.");
+      alert(
+        "Không thể truy cập Microphone! Vui lòng cấp quyền trong cài đặt trình duyệt.",
+      );
       console.error(error);
       return;
     }
@@ -428,7 +473,9 @@ export default function RecordingModal({
       setRecordingStatus("idle");
       setCountDownBeat(0);
       if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
       }
     }
   };
@@ -456,10 +503,14 @@ export default function RecordingModal({
         formData.append("audio", file);
       }
       formData.append("instrument", recordingTrack.instrument);
-      
+
       // Lấy trực tiếp từ biến state
       formData.append("status", saveTargetStatus);
-      const finalName = customTrackName.trim() || (saveTargetStatus === "published" ? `Take ${recordingTrack.instrument}` : "Bản nháp");
+      const finalName =
+        customTrackName.trim() ||
+        (saveTargetStatus === "published"
+          ? `Take ${recordingTrack.instrument}`
+          : "Bản nháp");
       formData.append("name", finalName);
       formData.append("sync_offset_ms", syncOffset);
       formData.append("use_ai_clean", useAiClean);
@@ -506,7 +557,9 @@ export default function RecordingModal({
 
   const openNameModal = (status) => {
     setSaveTargetStatus(status);
-    setCustomTrackName(status === "published" ? `Take ${recordingTrack.instrument}` : "Bản nháp");
+    setCustomTrackName(
+      status === "published" ? `Take ${recordingTrack.instrument}` : "Bản nháp",
+    );
     setIsNameModalOpen(true);
   }; // ĐÃ ĐÓNG NGOẶC HÀM NÀY
 
@@ -673,10 +726,13 @@ export default function RecordingModal({
             <div className="absolute inset-x-0 bottom-full mb-4 bg-card border border-border shadow-xl rounded-xl p-5 z-20 animate-in slide-in-from-bottom-4 duration-200">
               <h4 className="font-bold mb-2 flex items-center gap-2 text-foreground">
                 <FileText className="w-4 h-4 text-primary" />
-                Đặt tên cho {saveTargetStatus === "published" ? "Bản thu chính thức" : "Bản nháp"}
+                Đặt tên cho{" "}
+                {saveTargetStatus === "published"
+                  ? "Bản thu chính thức"
+                  : "Bản nháp"}
               </h4>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={customTrackName}
                 onChange={(e) => setCustomTrackName(e.target.value)}
                 className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-4"
@@ -685,13 +741,23 @@ export default function RecordingModal({
                 onKeyDown={(e) => e.key === "Enter" && executeSaveTrack()}
               />
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setIsNameModalOpen(false)}>Hủy</Button>
-                <Button className="flex-1" onClick={executeSaveTrack}>Lưu ngay</Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setIsNameModalOpen(false)}
+                >
+                  Hủy
+                </Button>
+                <Button className="flex-1" onClick={executeSaveTrack}>
+                  Lưu ngay
+                </Button>
               </div>
             </div>
           )}
           {recordingStatus === "preview" ? (
-            <div className={`flex flex-col gap-3 transition-opacity ${isNameModalOpen ? "opacity-30 pointer-events-none" : ""}`}>
+            <div
+              className={`flex flex-col gap-3 transition-opacity ${isNameModalOpen ? "opacity-30 pointer-events-none" : ""}`}
+            >
               <div className="flex items-center gap-3">
                 <Button
                   size="lg"

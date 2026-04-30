@@ -4,18 +4,25 @@ import { Button } from "@/components/ui/button";
 
 export default function MyRecords() {
   const isLoggedIn = !!localStorage.getItem("token");
-  const [myRecords, setMyRecords] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Gọi API lấy danh sách bản thu khi vào trang
+  // State cho Bản thu cá nhân
+  const [myRecords, setMyRecords] = useState([]);
+  const [isLoadingMyRecords, setIsLoadingMyRecords] = useState(false);
+
+  // State cho Khám phá cộng đồng
+  const [exploreRecords, setExploreRecords] = useState([]);
+  const [isLoadingExplore, setIsLoadingExplore] = useState(false);
+
+  // Fetch dữ liệu khi vào trang
   useEffect(() => {
     if (isLoggedIn) {
       fetchMyRecords();
     }
+    fetchExploreRecords(); // Gọi API lấy top bản thu (public)
   }, [isLoggedIn]);
 
   const fetchMyRecords = async () => {
-    setIsLoading(true);
+    setIsLoadingMyRecords(true);
     try {
       const response = await fetch("http://localhost:5000/api/jams/my-tracks", {
         headers: {
@@ -27,9 +34,24 @@ export default function MyRecords() {
         setMyRecords(data);
       }
     } catch (error) {
-      console.error("Lỗi tải bản thu:", error);
+      console.error("Lỗi tải bản thu của tôi:", error);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMyRecords(false);
+    }
+  };
+
+  const fetchExploreRecords = async () => {
+    setIsLoadingExplore(true);
+    try {
+      const response = await fetch("http://localhost:5000/api/jams/top-tracks");
+      if (response.ok) {
+        const data = await response.json();
+        setExploreRecords(data);
+      }
+    } catch (error) {
+      console.error("Lỗi tải top bản thu khám phá:", error);
+    } finally {
+      setIsLoadingExplore(false);
     }
   };
 
@@ -43,52 +65,8 @@ export default function MyRecords() {
     return `${m}:${s}`;
   };
 
-  // Dữ liệu cộng đồng (Giả lập)
-  const exploreRecords = [
-    {
-      id: 1,
-      trackName: "Solo Piano Intro",
-      projectTitle: "River Flows in You - Acoustic",
-      instrument: "Piano",
-      likes: 85,
-      duration: "1:20",
-    },
-    {
-      id: 2,
-      trackName: "Vocal Điệp khúc",
-      projectTitle: "Hotel California Jam",
-      instrument: "Vocal",
-      likes: 342,
-      duration: "0:45",
-    },
-    {
-      id: 3,
-      trackName: "Bassline ngẫu hứng",
-      projectTitle: "Jazz Night Chills",
-      instrument: "Bass",
-      likes: 120,
-      duration: "2:15",
-    },
-    {
-      id: 4,
-      trackName: "Đoạn dạo đầu Guitar",
-      projectTitle: "Acoustic Vibes",
-      instrument: "Guitar",
-      likes: 56,
-      duration: "0:30",
-    },
-    {
-      id: 5,
-      trackName: "Trống dồn nhịp điệu",
-      projectTitle: "Rock & Roll Life",
-      instrument: "Drums",
-      likes: 210,
-      duration: "1:05",
-    },
-  ];
-
   return (
-    <div className="flex flex-col h-full space-y-8">
+    <div className="flex flex-col h-full space-y-8 pb-10">
       {/* Header Trang */}
       <div className="flex items-center justify-between">
         <div>
@@ -100,7 +78,7 @@ export default function MyRecords() {
       <div
         className={`bg-card border border-border rounded-xl flex flex-col items-center justify-center shadow-sm ${myRecords.length === 0 ? "p-12 text-center" : "p-6"}`}
       >
-        {isLoading ? (
+        {isLoadingMyRecords ? (
           <div className="flex flex-col items-center py-10">
             <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
             <p className="text-muted-foreground">Đang tải bản thu của bạn...</p>
@@ -153,10 +131,9 @@ export default function MyRecords() {
                   className="group relative flex flex-col cursor-pointer border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors bg-background shadow-sm hover:shadow-md"
                   onClick={() => {
                     if (record.status === "draft") {
-                      window.location.href = `/jam-room?id=${record.project_id._id}&draftId=${record._id}`;
+                      window.location.href = `/jam-room?id=${record.project_id?._id}&draftId=${record._id}`;
                     } else {
-                      alert("Bản thu đã hoàn thành!");
-                      window.location.href = `/jam-room?id=${record.project_id._id}`;
+                      window.location.href = `/jam-room?id=${record.project_id?._id}`;
                     }
                   }}
                 >
@@ -167,14 +144,12 @@ export default function MyRecords() {
                     </div>
                   )}
 
-                  {/* Phần 1: Khối vuông */}
                   <div className="aspect-square bg-muted/20 flex items-center justify-center group-hover:bg-muted/40 transition-colors relative">
                     <Disc
                       className={`w-24 h-24 sm:w-32 sm:h-32 transition-colors duration-300 ${record.status === "draft" ? "text-muted-foreground/40 group-hover:text-amber-500/60" : "text-muted-foreground group-hover:text-primary"}`}
                     />
                   </div>
 
-                  {/* Phần 2: Thông tin */}
                   <div className="p-4 flex flex-col flex-1 border-t border-border/50">
                     <h3
                       className="font-bold text-sm truncate"
@@ -199,7 +174,9 @@ export default function MyRecords() {
                         <span>{formatDuration(record.duration)}</span>
                         <div className="flex items-center gap-1">
                           <Heart className="w-3.5 h-3.5 text-destructive" />
-                          <span>{record.likes_count || 0}</span>
+                          <span>
+                            {record.liked_by?.length || record.likes_count || 0}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -212,7 +189,6 @@ export default function MyRecords() {
       </div>
 
       {/* Khu vực Khám phá cộng đồng */}
-      {/* ... (Giữ nguyên như cũ) ... */}
       <div className="space-y-4 pt-4">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
@@ -222,44 +198,59 @@ export default function MyRecords() {
           Xem bản thu được yêu thích do cộng đồng đóng góp
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-4">
-          {exploreRecords.map((record) => (
-            <div
-              key={record.id}
-              className="group flex flex-col cursor-pointer border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors bg-card shadow-sm hover:shadow-md"
-            >
-              <div className="aspect-square bg-muted/30 flex items-center justify-center group-hover:bg-muted/50 transition-colors">
-                <Disc className="w-24 h-24 sm:w-32 sm:h-32 text-muted-foreground group-hover:text-primary transition-colors duration-300" />
-              </div>
-              <div className="p-4 flex flex-col flex-1 border-t border-border/50">
-                <h3
-                  className="font-bold text-sm truncate"
-                  title={record.trackName}
-                >
-                  {record.trackName}
-                </h3>
-                <p
-                  className="text-xs text-muted-foreground truncate mt-1"
-                  title={record.projectTitle}
-                >
-                  {record.projectTitle}
-                </p>
-                <div className="mt-auto pt-3 flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold bg-secondary text-secondary-foreground px-2 py-1 rounded-md">
-                    {record.instrument}
-                  </span>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{record.duration}</span>
-                    <div className="flex items-center gap-1">
-                      <Heart className="w-3.5 h-3.5 text-destructive" />
-                      <span>{record.likes}</span>
+        {isLoadingExplore ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : exploreRecords.length === 0 ? (
+          <div className="text-center p-8 bg-muted/20 border border-border border-dashed rounded-xl text-muted-foreground">
+            Hiện chưa có bản thu nào được công bố.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-4">
+            {exploreRecords.map((record) => (
+              <div
+                key={record._id}
+                className="group flex flex-col cursor-pointer border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors bg-card shadow-sm hover:shadow-md"
+                onClick={() =>
+                  (window.location.href = `/jam-room?id=${record.project_id?._id}`)
+                }
+              >
+                <div className="aspect-square bg-muted/30 flex items-center justify-center group-hover:bg-muted/50 transition-colors">
+                  <Disc className="w-24 h-24 sm:w-32 sm:h-32 text-muted-foreground group-hover:text-primary transition-colors duration-300" />
+                </div>
+                <div className="p-4 flex flex-col flex-1 border-t border-border/50">
+                  <h3
+                    className="font-bold text-sm truncate"
+                    title={record.name}
+                  >
+                    {record.name}
+                  </h3>
+                  <p
+                    className="text-xs text-muted-foreground truncate mt-1"
+                    title={record.project_id?.title}
+                  >
+                    {record.project_id?.title || "Dự án không xác định"}
+                  </p>
+                  <div className="mt-auto pt-3 flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold bg-secondary text-secondary-foreground px-2 py-1 rounded-md">
+                      {record.instrument}
+                    </span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{formatDuration(record.duration)}</span>
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3.5 h-3.5 text-destructive fill-current" />
+                        <span className="font-bold text-foreground">
+                          {record.likes_count || 0}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

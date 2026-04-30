@@ -31,6 +31,26 @@ export default function Home() {
   const user = userString ? JSON.parse(userString) : null;
   const isLoggedIn = !!user;
 
+  useEffect(() => {
+    const toekn = localStorage.getItem("token");
+    if (toekn) {
+      try {
+        const payload = JSON.parse(atob(toekn.split(".")[1]));
+        const isExpired = payload.exp * 1000 < Date.now();
+        if (isExpired) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          window.location.href = "/login";
+        }
+      } catch (error) {
+        console.error("Lỗi khi kiểm tra token:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
+    }
+  }, []);
+
   const decorativeIcons = [
     Music,
     Music2,

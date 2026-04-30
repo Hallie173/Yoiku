@@ -12,6 +12,7 @@ import {
   Check,
   Loader2,
   X,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -29,7 +30,16 @@ import { useJamStore } from "@/store/useJamStore";
 import RealWaveform from "@/components/RealWaveform";
 import RecordingModal from "./RecordingModal";
 
+const getUserIdFromToken = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split('.')[1])).userId;
+  } catch (e) { return null; }
+};
+
 export default function MixerBoard() {
+  const currentUserId = getUserIdFromToken();
   const {
     activeRoom,
     currentTracks,
@@ -43,6 +53,7 @@ export default function MixerBoard() {
     setTrackVolume,
     saveMixToCloud,
     addNewTrack,
+    toggleLikeRecord,
   } = useJamStore();
 
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
@@ -515,6 +526,32 @@ export default function MixerBoard() {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
+
+                    {(() => {
+                      const activeRecord = track.records.find((r) => r.id === track.activeRecordId);
+                      const isLikedByMe = activeRecord?.liked_by?.includes(currentUserId);
+                      
+                      return activeRecord ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-7 px-2 flex gap-1 transition-colors ${
+                            isLikedByMe ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground"
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!currentUserId) return alert("Vui lòng đăng nhập để thả tim!");
+                            toggleLikeRecord(track.instrument, activeRecord.id);
+                          }}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${isLikedByMe ? "fill-current" : ""}`} />
+                          <span className="text-[10px] font-bold">
+                            {activeRecord.liked_by?.length || 0}
+                          </span>
+                        </Button>
+                      ) : null;
+                    })()}
+                    
                     <div className="flex-1 px-1 flex items-center gap-2">
                       <Volume2 className="w-4 h-4 text-foreground/70 shrink-0" />
                       <Slider

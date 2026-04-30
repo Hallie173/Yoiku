@@ -69,7 +69,7 @@ export default function SheetsLibrary() {
     ...sheet,
     id: sheet._id,
     images: [sheet.file_url],
-    liked_by: sheet.liked_by || [], // Đảm bảo luôn có mảng liked_by
+    liked_by: sheet.liked_by || [],
   });
 
   const fetchExploreSheets = async () => {
@@ -277,6 +277,28 @@ export default function SheetsLibrary() {
     }
   };
 
+  const handleJoinJam = async (e, sheetId) => {
+    e.stopPropagation();
+    if (!isLoggedIn) return alert("Vui lòng đăng nhập để tham gia Jam!");
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/jams/find-by-sheet/${sheetId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      if (data.roomId) {
+        window.location.href = `/jam-room?id=${data.roomId}`;
+      } else {
+        alert("Không tìm thấy phòng Jam nào đang hoạt động với nhạc phổ này.");
+      }
+    } catch (error) {
+      alert("Lỗi khi tham gia Jam: " + error.message);
+    }
+  };
+
   const handleCreateJamSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -333,10 +355,24 @@ export default function SheetsLibrary() {
               className="gap-2 h-10 px-6 shadow-lg shadow-primary/25 rounded-lg"
               onClick={(e) => handleJamNow(e, sheet)}
             >
-              <PlayCircle className="w-4 h-4" /> Jam ngay
+              <PlayCircle className="w-4 h-4" /> Tạo phòng Jam
             </Button>
           </div>
         )}
+
+        {!isMySheet && (
+          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-2 h-10 px-6 shadow-lg bg-background/90 hover:bg-background backdrop-blur-sm rounded-lg border border-border"
+              onClick={(e) => handleJoinJam(e, sheet.id)}
+            >
+              <Users className="w-4 h-4 text-emerald-500" /> Đến phòng Jam
+            </Button>
+          </div>
+        )}
+        
         {isMySheet && editingSheetId !== sheet.id && (
           <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
             <Button

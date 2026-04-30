@@ -43,6 +43,35 @@ export const useJamStore = create((set, get) => ({
     }));
   },
 
+  toggleLikeRecord: async (instrument, recordId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/jams/tracks/${recordId}/like`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Cập nhật mảng liked_by của bản thu tương ứng trên UI
+        set((state) => ({
+          currentTracks: state.currentTracks.map((t) => {
+            if (t.instrument === instrument) {
+              return {
+                ...t,
+                records: t.records.map((r) =>
+                  r.id === recordId ? { ...r, liked_by: data.liked_by } : r
+                ),
+              };
+            }
+            return t;
+          }),
+        }));
+      }
+    } catch (error) {
+      console.error("Lỗi khi thả tim:", error);
+    }
+  },
+
   addNewTrack: (instrumentName) => {
     set((state) => {
       const colorPalette = [
